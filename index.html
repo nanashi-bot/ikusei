@@ -1,1 +1,273 @@
 
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>推し育成アプリ</title>
+
+<meta name="theme-color" content="#ff5c8a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icon.png">
+
+<style>
+body{margin:0;font-family:-apple-system;background:#f2f2f7}
+
+/* 起動 */
+#splash{
+position:fixed;width:100%;height:100%;
+background:#ff5c8a;color:#fff;
+display:flex;justify-content:center;align-items:center;
+z-index:9999;transition:.5s}
+
+/* タブ */
+#tabs{display:flex;overflow-x:auto;background:#fff;padding:5px;gap:5px}
+.tab{padding:6px 12px;background:#eee;border-radius:10px;white-space:nowrap}
+.activeTab{background:#ff5c8a;color:#fff}
+
+/* 画面 */
+.screen{display:none;height:100vh;overflow:auto}
+.active{display:block}
+
+/* 一覧 */
+#grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:10px}
+.card{background:#fff;border-radius:16px;padding:8px;text-align:center}
+.card img{width:100%;height:120px;object-fit:cover;border-radius:12px}
+
+/* 詳細 */
+#detail{text-align:center;padding:14px}
+#petImage{width:160px;height:160px;border-radius:16px;object-fit:cover}
+
+/* ボタン */
+button{
+width:100%;margin-top:8px;padding:12px;
+border:none;border-radius:12px;background:#ff5c8a;color:#fff;
+touch-action: manipulation;
+}
+
+#addBtn{
+position:fixed;bottom:20px;right:20px;
+width:60px;height:60px;border-radius:50%;font-size:26px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="splash">推し育成アプリ</div>
+<div id="tabs"></div>
+
+<div id="listScreen" class="screen active">
+<div id="grid"></div>
+</div>
+
+<div id="detailScreen" class="screen">
+<div id="detail">
+
+<h2 id="name"></h2>
+<p>出会って <span id="days"></span> 日</p>
+
+<img id="petImage">
+
+<h3>🍚 <span id="food"></span>%</h3>
+<h3>💗 <span id="love"></span>%</h3>
+
+<button onclick="feed()" ontouchstart="feed()">ご飯</button>
+<button onclick="loveUp()" ontouchstart="loveUp()">愛でる</button>
+
+<input id="nameInput" placeholder="名前">
+<button onclick="changeName()" ontouchstart="changeName()">名前変更</button>
+
+<input type="file" accept="image/*" onchange="changeImage(event)">
+
+<button onclick="deletePet()" ontouchstart="deletePet()">この子を削除</button>
+
+<!-- バックアップ -->
+<button onclick="exportData()">バックアップ保存</button>
+<input type="file" onchange="importData(event)">
+
+<button onclick="back()" ontouchstart="back()">戻る</button>
+
+</div>
+</div>
+
+<button id="addBtn" onclick="addPet()" ontouchstart="addPet()">＋</button>
+
+<script>
+let data=JSON.parse(localStorage.getItem("appData"))||{
+groups:{"全員":[]},
+currentGroup:"全員"
+};
+
+let current=0;
+
+function save(){
+localStorage.setItem("appData",JSON.stringify(data));
+}
+
+/* 初期 */
+if(data.groups["全員"].length===0){
+data.groups["全員"].push({
+name:"りん",food:100,love:100,start:Date.now(),image:""
+});
+save();
+}
+
+/* タブ */
+function renderTabs(){
+tabs.innerHTML=Object.keys(data.groups).map(g=>`
+<div class="tab ${g===data.currentGroup?'activeTab':''}"
+onclick="changeGroup('${g}')" ontouchstart="changeGroup('${g}')">${g}</div>
+`).join("")+`<div class="tab" onclick="addGroup()" ontouchstart="addGroup()">＋</div>`;
+}
+
+function changeGroup(g){
+data.currentGroup=g;
+current=0;
+save();render();
+}
+
+/* フォルダ */
+function addGroup(){
+let name=prompt("グループ名");
+if(!name||data.groups[name]) return;
+data.groups[name]=[];
+data.currentGroup=name;
+save();render();
+}
+
+/* キャラ */
+function addPet(){
+data.groups[data.currentGroup].push({
+name:"なまえ未設定",food:100,love:100,start:Date.now(),image:""
+});
+save();render();
+}
+
+function deletePet(){
+if(!confirm("削除する？"))return;
+data.groups[data.currentGroup].splice(current,1);
+current=0;
+save();showList();render();
+}
+
+/* 操作 */
+function get(){return data.groups[data.currentGroup][current];}
+
+function feed(){let p=get();p.food=Math.min(100,p.food+10);save();render();}
+function loveUp(){let p=get();p.love=Math.min(100,p.love+10);save();render();}
+function changeName(){get().name=nameInput.value;save();render();}
+
+/* 画像 */
+function changeImage(e){
+const file=e.target.files[0];
+const img=new Image();
+const reader=new FileReader();
+
+reader.onload=e=>img.src=e.target.result;
+img.onload=()=>{
+const c=document.createElement("canvas");
+const ctx=c.getContext("2d");
+let max=300,w=img.width,h=img.height;
+
+if(w>h&&w>max){h*=max/w;w=max;}
+else if(h>max){w*=max/h;h=max;}
+
+c.width=w;c.height=h;
+ctx.drawImage(img,0,0,w,h);
+
+get().image=c.toDataURL("image/jpeg",0.7);
+save();render();
+};
+reader.readAsDataURL(file);
+}
+
+/* バックアップ */
+function exportData(){
+const blob=new Blob([JSON.stringify(data)],{type:"application/json"});
+const a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download="oshi_backup.json";
+a.click();
+}
+
+function importData(e){
+const file=e.target.files[0];
+if(!file) return;
+
+const reader=new FileReader();
+reader.onload=function(){
+data=JSON.parse(reader.result);
+save();
+render();
+};
+reader.readAsText(file);
+}
+
+/* 画面 */
+function showList(){listScreen.classList.add("active");detailScreen.classList.remove("active")}
+function showDetail(){listScreen.classList.remove("active");detailScreen.classList.add("active")}
+
+function back(){
+current=0;
+showList();
+render();
+
+/* iPhone対策 */
+document.body.style.display="none";
+document.body.offsetHeight;
+document.body.style.display="";
+}
+
+/* 表示 */
+function render(){
+renderTabs();
+
+let arr=data.groups[data.currentGroup];
+
+grid.innerHTML=arr.map((p,i)=>`
+<div class="card" onclick="selectPet(${i})" ontouchstart="selectPet(${i})">
+<img src="${p.image||''}">
+<b>${p.name}</b>
+<div>🍚${p.food}% 💗${p.love}%</div>
+</div>`).join("");
+
+let p=get();
+if(!p)return;
+
+name.innerText=p.name;
+food.innerText=p.food;
+love.innerText=p.love;
+petImage.src=p.image||"";
+
+days.innerText=Math.floor((Date.now()-p.start)/(1000*60*60*24));
+}
+
+function selectPet(i){current=i;showDetail();render();}
+
+/* 放置 */
+setInterval(()=>{
+Object.values(data.groups).forEach(arr=>{
+arr.forEach(p=>{
+p.food=Math.max(0,p.food-1);
+p.love=Math.max(0,p.love-1);
+});
+});
+save();render();
+},600000);
+
+/* 起動 */
+window.onload=()=>{
+setTimeout(()=>{
+splash.style.opacity=0;
+setTimeout(()=>splash.remove(),500);
+},1500);
+};
+
+render();
+</script>
+
+</body>
+</html>
