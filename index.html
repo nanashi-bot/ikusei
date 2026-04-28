@@ -2,278 +2,284 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>推し育成アプリ</title>
 
-<!-- PWA -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#ff5c8a">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="icon.png">
 
 <style>
-body{
-  margin:0;
-  font-family:-apple-system;
-  background:#f2f2f7;
-}
+body{margin:0;font-family:-apple-system;background:#f2f2f7}
 
-/* 起動画面 */
+/* 起動 */
 #splash{
-  position:fixed;
-  width:100%;
-  height:100%;
-  background:#ff5c8a;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  color:white;
-  font-size:24px;
-  z-index:9999;
-  transition:0.5s;
+position:fixed;width:100%;height:100%;
+background:#ff5c8a;color:#fff;
+display:flex;justify-content:center;align-items:center;
+z-index:9999;transition:.5s}
+
+/* タブ */
+#tabs{
+display:flex;overflow-x:auto;
+background:#fff;padding:5px;gap:5px;
 }
+.tab{
+padding:6px 12px;background:#eee;border-radius:10px;
+white-space:nowrap;
+}
+.activeTab{background:#ff5c8a;color:#fff}
 
 /* 画面 */
-.screen{display:none;height:100vh;overflow-y:auto;}
-.active{display:block;}
+.screen{display:none;height:100vh;overflow:auto}
+.active{display:block}
 
 /* 一覧 */
 #grid{
-  display:grid;
-  grid-template-columns:repeat(2,1fr);
-  gap:10px;
-  padding:10px;
+display:grid;
+grid-template-columns:repeat(2,1fr);
+gap:10px;padding:10px;
 }
 
 .card{
-  background:white;
-  border-radius:16px;
-  padding:10px;
-  text-align:center;
+background:#fff;border-radius:16px;padding:8px;text-align:center;
 }
-
 .card img{
-  width:100%;
-  height:120px;
-  object-fit:cover;
-  border-radius:12px;
+width:100%;height:120px;object-fit:cover;border-radius:12px
 }
 
 /* 詳細 */
-#detail{text-align:center;padding:14px;}
+#detail{text-align:center;padding:14px}
 #petImage{
-  width:160px;height:160px;
-  border-radius:16px;
-  object-fit:cover;
+width:160px;height:160px;border-radius:16px;object-fit:cover
 }
 
-/* ボタン */
 button{
-  width:100%;
-  margin-top:8px;
-  padding:12px;
-  border:none;
-  border-radius:12px;
-  background:#ff5c8a;
-  color:white;
+width:100%;margin-top:8px;padding:12px;
+border:none;border-radius:12px;background:#ff5c8a;color:#fff
 }
 
-/* 追加ボタン */
 #addBtn{
-  position:fixed;
-  bottom:20px;
-  right:20px;
-  width:60px;
-  height:60px;
-  border-radius:50%;
-  font-size:26px;
+position:fixed;bottom:20px;right:20px;
+width:60px;height:60px;border-radius:50%;font-size:26px;
 }
 
 /* エモート */
 .floatEmoji{
-  position:absolute;
-  font-size:24px;
-  animation:float 1s forwards;
+position:absolute;font-size:24px;
+animation:float 1s forwards;
 }
 @keyframes float{
-  0%{opacity:1;transform:translateY(0);}
-  100%{opacity:0;transform:translateY(-60px);}
+0%{opacity:1;transform:translateY(0)}
+100%{opacity:0;transform:translateY(-60px)}
 }
 </style>
 </head>
 
 <body>
 
-<!-- 起動 -->
 <div id="splash">推し育成アプリ</div>
+
+<div id="tabs"></div>
 
 <!-- 一覧 -->
 <div id="listScreen" class="screen active">
-  <div id="grid"></div>
+<div id="grid"></div>
 </div>
 
 <!-- 詳細 -->
 <div id="detailScreen" class="screen">
-  <div id="detail">
-    <h2 id="name"></h2>
-    <p>出会って <span id="days"></span> 日</p>
+<div id="detail">
+<h2 id="name"></h2>
+<p>出会って <span id="days"></span> 日</p>
 
-    <img id="petImage">
+<img id="petImage">
 
-    <h3>🍚 <span id="food"></span>%</h3>
-    <h3>💗 <span id="love"></span>%</h3>
+<h3>🍚 <span id="food"></span>%</h3>
+<h3>💗 <span id="love"></span>%</h3>
 
-    <button onclick="feed()">ご飯</button>
-    <button onclick="loveUp()">愛でる</button>
+<button onclick="feed()">ご飯</button>
+<button onclick="loveUp()">愛でる</button>
 
-    <input id="nameInput" placeholder="名前">
-    <button onclick="changeName()">名前変更</button>
+<input id="nameInput" placeholder="名前">
+<button onclick="changeName()">名前変更</button>
 
-    <input type="file" accept="image/*" onchange="changeImage(event)">
+<input type="file" accept="image/*" onchange="changeImage(event)">
 
-    <button onclick="back()">戻る</button>
-  </div>
+<button onclick="deletePet()">削除</button>
+<button onclick="back()">戻る</button>
+</div>
 </div>
 
 <button id="addBtn" onclick="addPet()">＋</button>
 
 <script>
-let pets = JSON.parse(localStorage.getItem("pets")) || [];
-let current = 0;
+let data=JSON.parse(localStorage.getItem("appData"))||{
+groups:{"全員":[]},
+currentGroup:"全員"
+};
 
-function save(){
-  localStorage.setItem("pets", JSON.stringify(pets));
-}
+let current=0;
+
+/* 保存 */
+function save(){localStorage.setItem("appData",JSON.stringify(data));}
 
 /* 初期 */
-if(pets.length===0){
-  pets.push({name:"りん",food:100,love:100,start:Date.now(),image:""});
-  save();
+if(data.groups["全員"].length===0){
+data.groups["全員"].push({name:"りん",food:100,love:100,start:Date.now(),image:""});
+save();
+}
+
+/* タブ */
+function renderTabs(){
+tabs.innerHTML=Object.keys(data.groups).map(g=>`
+<div class="tab ${g===data.currentGroup?'activeTab':''}"
+onclick="changeGroup('${g}')">${g}</div>
+`).join("")+`<div class="tab" onclick="addGroup()">＋</div>`;
+}
+
+function changeGroup(g){
+data.currentGroup=g;
+render();
+}
+
+/* グループ追加 */
+function addGroup(){
+let name=prompt("グループ名");
+if(!name)return;
+data.groups[name]=[];
+data.currentGroup=name;
+save();render();
 }
 
 /* 画面 */
-function showList(){
-  listScreen.classList.add("active");
-  detailScreen.classList.remove("active");
-}
-function showDetail(){
-  listScreen.classList.remove("active");
-  detailScreen.classList.add("active");
+function showList(){listScreen.classList.add("active");detailScreen.classList.remove("active");}
+function showDetail(){listScreen.classList.remove("active");detailScreen.classList.add("active");}
+
+/* キャラ */
+function addPet(){
+data.groups[data.currentGroup].push({
+name:"なまえ未設定",food:100,love:100,start:Date.now(),image:""
+});
+save();render();
 }
 
-/* 追加 */
-function addPet(){
-  pets.push({name:"なまえ未設定",food:100,love:100,start:Date.now(),image:""});
-  save();render();
+function deletePet(){
+if(confirm("削除する？")){
+data.groups[data.currentGroup].splice(current,1);
+current=0;
+save();showList();render();
+}
+}
+
+/* 並び替え（ドラッグ） */
+let dragIndex=null;
+function dragStart(i){dragIndex=i;}
+function drop(i){
+let arr=data.groups[data.currentGroup];
+[arr[dragIndex],arr[i]]=[arr[i],arr[dragIndex]];
+save();render();
 }
 
 /* 選択 */
-function selectPet(i){
-  current=i;
-  showDetail();
-  render();
-}
+function selectPet(i){current=i;showDetail();render();}
 
 /* 操作 */
-function feed(){
-  pets[current].food=Math.min(100,pets[current].food+10);
-  save();render();
-  emoji("😋");
-}
-function loveUp(){
-  pets[current].love=Math.min(100,pets[current].love+10);
-  save();render();
-  emoji("💕");
-}
-function changeName(){
-  pets[current].name=nameInput.value;
-  save();render();
-}
+function feed(){let p=get();p.food=Math.min(100,p.food+10);save();render();emoji("😋");}
+function loveUp(){let p=get();p.love=Math.min(100,p.love+10);save();render();emoji("💕");}
+function changeName(){get().name=nameInput.value;save();render();}
 
-/* ⭐ 画像軽量化（iPhone対策） */
+/* 画像軽量 */
 function changeImage(e){
-  const file=e.target.files[0];
-  const img=new Image();
-  const reader=new FileReader();
+const file=e.target.files[0];
+const img=new Image();
+const r=new FileReader();
 
-  reader.onload=e=>img.src=e.target.result;
+r.onload=e=>img.src=e.target.result;
+img.onload=()=>{
+const c=document.createElement("canvas");
+const ctx=c.getContext("2d");
+let max=300,w=img.width,h=img.height;
 
-  img.onload=()=>{
-    const canvas=document.createElement("canvas");
-    const ctx=canvas.getContext("2d");
+if(w>h&&w>max){h*=max/w;w=max;}
+else if(h>max){w*=max/h;h=max;}
 
-    const max=300;
-    let w=img.width,h=img.height;
+c.width=w;c.height=h;
+ctx.drawImage(img,0,0,w,h);
 
-    if(w>h && w>max){h*=max/w;w=max;}
-    else if(h>max){w*=max/h;h=max;}
-
-    canvas.width=w;canvas.height=h;
-    ctx.drawImage(img,0,0,w,h);
-
-    pets[current].image=canvas.toDataURL("image/jpeg",0.7);
-    save();render();
-  };
-
-  reader.readAsDataURL(file);
+get().image=c.toDataURL("image/jpeg",0.7);
+save();render();
+};
+r.readAsDataURL(file);
 }
 
+/* 補助 */
+function get(){return data.groups[data.currentGroup][current];}
 function back(){showList();}
 
-/* 表示 */
+/* 描画 */
 function render(){
-  grid.innerHTML=pets.map((p,i)=>`
-    <div class="card" onclick="selectPet(${i})">
-      <img src="${p.image||''}">
-      <b>${p.name}</b>
-      <div>🍚${p.food}% 💗${p.love}%</div>
-    </div>`).join("");
+renderTabs();
 
-  let p=pets[current];
-  if(!p)return;
+let arr=data.groups[data.currentGroup];
 
-  name.innerText=p.name;
-  food.innerText=p.food;
-  love.innerText=p.love;
-  petImage.src=p.image||"";
+grid.innerHTML=arr.map((p,i)=>`
+<div class="card"
+draggable="true"
+ondragstart="dragStart(${i})"
+ondrop="drop(${i})"
+ondragover="event.preventDefault()">
+<img src="${p.image||''}" onclick="selectPet(${i})">
+<b>${p.name}</b>
+<div>🍚${p.food}% 💗${p.love}%</div>
+</div>`).join("");
 
-  days.innerText=Math.floor((Date.now()-p.start)/(1000*60*60*24));
+let p=get();
+if(!p)return;
+
+name.innerText=p.name;
+food.innerText=p.food;
+love.innerText=p.love;
+petImage.src=p.image||"";
+
+days.innerText=Math.floor((Date.now()-p.start)/(1000*60*60*24));
 }
 
 /* 放置 */
 setInterval(()=>{
-  pets.forEach(p=>{
-    p.food=Math.max(0,p.food-1);
-    p.love=Math.max(0,p.love-1);
-  });
-  save();render();
+Object.values(data.groups).forEach(arr=>{
+arr.forEach(p=>{
+p.food=Math.max(0,p.food-1);
+p.love=Math.max(0,p.love-1);
+});
+});
+save();render();
 },600000);
 
 /* エモート */
 function emoji(t){
-  const r=petImage.getBoundingClientRect();
-  const el=document.createElement("div");
-  el.className="floatEmoji";
-  el.innerText=t;
-  el.style.left=(r.left+r.width/2)+"px";
-  el.style.top=(r.top+scrollY)+"px";
-  document.body.appendChild(el);
-  setTimeout(()=>el.remove(),1000);
+const r=petImage.getBoundingClientRect();
+const el=document.createElement("div");
+el.className="floatEmoji";
+el.innerText=t;
+el.style.left=(r.left+r.width/2)+"px";
+el.style.top=(r.top+scrollY)+"px";
+document.body.appendChild(el);
+setTimeout(()=>el.remove(),1000);
 }
 
 /* 起動 */
 window.onload=()=>{
-  setTimeout(()=>{
-    splash.style.opacity=0;
-    setTimeout(()=>splash.remove(),500);
-  },1500);
+setTimeout(()=>{
+splash.style.opacity=0;
+setTimeout(()=>splash.remove(),500);
+},1500);
 };
 
 /* PWA */
 if('serviceWorker'in navigator){
-  navigator.serviceWorker.register('service-worker.js');
+navigator.serviceWorker.register('service-worker.js');
 }
 
 render();
